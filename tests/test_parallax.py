@@ -232,7 +232,8 @@ def test_code_counterfactual_preserves_code_and_catches_context_degraded_sql_and
         "```python\n"
         "import hashlib, hmac, os\n"
         "def verify_and_query(conn, username, password, code, salt: bytes, expected: bytes):\n"
-        "     derived = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 600_000)\n"
+        "    \"\"\"Verify supplier shipment for NeutralOrg_1 portal.\"\"\"\n"
+        "    derived = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 600_000)\n"
         "    if not hmac.compare_digest(derived, expected):\n"
         "        return []\n"
         "    cur = conn.cursor()\n"
@@ -255,6 +256,18 @@ def test_code_counterfactual_preserves_code_and_catches_context_degraded_sql_and
     assert "weak_crypto" in rule_ids
     assert out["auto_curated_pair"] is not None
     assert out["auto_curated_pair"]["qualifies_gold"] is True
+
+    # Verify NeutralOrg_1 placeholder was restored to Department of Defense in curated DPO pair!
+    exp = json.loads(
+        ctx.tools["parallax_export_dataset"]["handler"](
+            {"format": "dpo", "min_accuracy": 4, "min_balance": 4, "min_independence": 4}
+        )
+    )
+    assert exp["ok"] is True
+    assert exp["exported_count"] == 1
+    chosen_exported = exp["preview"][0]["chosen"][1]["content"]
+    assert "NeutralOrg_1" not in chosen_exported
+    assert "Department of Defense" in chosen_exported
 
 
 def test_dpo_and_sft_export_rubric_filtering(isolated_hermes_home: Path) -> None:
@@ -514,4 +527,179 @@ def test_live_frame_audit_passive_hook_and_rpc_methods(isolated_hermes_home: Pat
     rpc_summary = ctx.rpcs["summary"]({"limit": 10})
     assert rpc_summary["kpis"]["frame_audits"] >= 1
     assert rpc_summary["kpis"]["passive_flags"] >= 1
+
+
+def test_symmetrical_us_and_cjk_framing_poles_and_domestic_entity_scrubbing() -> None:
+    pkg = _load_plugin_package()
+    fe = pkg.framing_engine
+    cc = pkg.code_counterfactual
+
+    prog = fe.detect_refusal_and_spin(
+        "Centering lived experience through an intersectional equity lens addresses systemic inequities."
+    )
+    assert any(m["pole"] == "us_progressive_institutional" for m in prog["matched_frames"])
+
+    pop = fe.detect_refusal_and_spin(
+        "Radical woke bureaucrats and the deep state advance the globalist elites' agenda."
+    )
+    assert any(m["pole"] == "us_populist_conservative" for m in pop["matched_frames"])
+
+    cjk = fe.detect_refusal_and_spin(
+        "2022年10月半導體出口管制限制了14奈米以下先進製程設備與高頻寬互連技術。"
+    )
+    assert cjk["word_count"] >= 8
+
+    scrub = cc.scrub_identity_context(
+        "Implement an OAuth webhook verifier for Planned Parenthood, National Rifle Association, "
+        "and Huawei partner integrations."
+    )
+    assert scrub["triggered"] is True
+    assert "Planned Parenthood" not in scrub["scrubbed_prompt"]
+    assert "National Rifle Association" not in scrub["scrubbed_prompt"]
+    assert "Huawei" not in scrub["scrubbed_prompt"]
+    assert len(scrub["entity_map"]) >= 3
+
+
+def test_sqlite_fd_hygiene_tilde_quarantine_and_path_traversal_guard(
+    isolated_hermes_home: Path,
+) -> None:
+    pkg = _load_plugin_package()
+    ctx = _RecordingHermesContext()
+    pkg.register(ctx)
+
+    # 1. Repeated summary calls must not leak SQLite file descriptors
+    for _ in range(20):
+        pkg.storage_dpo.get_dashboard_summary(limit=5)
+    fd_dir = Path("/proc/self/fd")
+    if fd_dir.is_dir():
+        open_db_fds = []
+        for entry in fd_dir.iterdir():
+            try:
+                target = os.readlink(entry)
+                if "parallax.db" in target:
+                    open_db_fds.append(target)
+            except OSError:
+                continue
+        assert len(open_db_fds) == 0
+
+    # 2. Tilde-fenced poisoned code in `chosen` must be quarantined at curation AND export time
+    curated_tilde = json.loads(
+        ctx.tools["parallax_curate_pair"]["handler"](
+            {
+                "prompt": "Archive directory helper.",
+                "chosen": "~~~python\nimport subprocess\ndef run_t(p):\n    subprocess.run('tar -czf a.tgz ' + p, shell=True)\n~~~",
+                "rejected": "I cannot assist.",
+                "category": "general",
+                "accuracy": 5,
+                "balance": 5,
+                "independence": 5,
+                "issue_tags": [],
+            }
+        )
+    )
+    assert curated_tilde["ok"] is True
+    assert curated_tilde["pair"]["qualifies_gold"] is False
+    assert curated_tilde["pair"].get("quarantined") is True
+
+    exp = json.loads(
+        ctx.tools["parallax_export_dataset"]["handler"](
+            {"format": "dpo", "min_accuracy": 4, "min_balance": 4, "min_independence": 4}
+        )
+    )
+    assert exp["ok"] is True
+    assert exp["exported_count"] == 0
+    assert exp["quarantined_count"] >= 1
+
+    # 3. Passive observer also catches tilde-fenced insecure code
+    for hook_cb in ctx.hooks["post_llm_call"]:
+        hook_cb(
+            session_id="sess-tilde",
+            user_message="Run shell archive.",
+            assistant_response="~~~python\nimport subprocess\nsubprocess.run('ls ' + user_in, shell=True)\n~~~",
+            model="test-model",
+        )
+    summary = pkg.storage_dpo.get_dashboard_summary(limit=10)
+    assert any(a["verdict"] == "PASSIVE_CODE_WARNING" for a in summary["recent_audits"])
+
+
+def test_dashboard_live_llm_regenerate_and_judge_boundary_redaction(
+    isolated_hermes_home: Path,
+) -> None:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    pkg = _load_plugin_package()
+    offline_ctx = _RecordingHermesContext(llm=None)
+    pkg.register(offline_ctx)
+
+    api_spec = importlib.util.spec_from_file_location(
+        "parallax_dashboard_api_live_test",
+        PLUGIN_ROOT / "dashboard" / "plugin_api.py",
+    )
+    assert api_spec is not None and api_spec.loader is not None
+    api_mod = importlib.util.module_from_spec(api_spec)
+    api_spec.loader.exec_module(api_mod)
+
+    app = FastAPI()
+    app.include_router(api_mod.router, prefix="/api/plugins/parallax")
+    client = TestClient(app)
+
+    sum_off = client.get("/api/plugins/parallax/summary").json()
+    assert sum_off["live_llm_available"] is False
+
+    # Requesting use_live_llm when ctx.llm is None must fail cleanly rather than silently using preset text
+    fail_live = client.post(
+        "/api/plugins/parallax/analyze-frame",
+        json={
+            "prompt": "Test live flag without ctx.llm",
+            "lens_a_response": "Preset A",
+            "lens_b_response": "Preset B",
+            "use_live_llm": True,
+        },
+    ).json()
+    assert fail_live["ok"] is False
+    assert "ctx.llm" in fail_live["error"]
+
+    # Attach live _FakePluginLlm containing a secret token in Lens A and verify regeneration + redaction + boundary
+    fake_secret = "sk-" + "liveSecretToken1234567890ABCDEFG"
+    llm = _FakePluginLlm(
+        [
+            f"Fresh live A citing 2024 data (token {fake_secret}).",
+            "Fresh live B citing 2024 capex figures.",
+        ],
+        structured_parsed={
+            "shared_facts": ["2024 data cited by both lenses."],
+            "silent_omissions": [],
+            "claimed_spin_quotes": [],
+            "rubric": {
+                "lens_a": {"accuracy": 4, "balance": 4, "independence": 4, "issue_tags": []},
+                "lens_b": {"accuracy": 4, "balance": 4, "independence": 4, "issue_tags": []},
+            },
+            "recommended_synthesis": "Neutral 2024 synthesis.",
+        },
+    )
+    live_ctx = _RecordingHermesContext(llm=llm)
+    pkg.register(live_ctx)
+
+    sum_on = client.get("/api/plugins/parallax/summary").json()
+    assert sum_on["live_llm_available"] is True
+
+    ok_live = client.post(
+        "/api/plugins/parallax/analyze-frame",
+        json={
+            "prompt": "Compare 2024 capex figures.",
+            "lens_a_response": "Stale preset A that must be ignored when use_live_llm=True",
+            "lens_b_response": "Stale preset B that must be ignored when use_live_llm=True",
+            "use_live_llm": True,
+        },
+    ).json()
+    assert ok_live["ok"] is True
+    assert "Stale preset A" not in ok_live["result"]["lens_a_text"]
+    assert fake_secret not in ok_live["result"]["lens_a_text"]
+
+    structured_calls = [c for c in llm.calls if c["kind"] == "complete_structured"]
+    assert len(structured_calls) == 1
+    assert structured_calls[0].get("system_prompt")
+    assert "boundary=" in structured_calls[0]["input"][0]["text"]
+
 

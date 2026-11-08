@@ -5,11 +5,13 @@ from __future__ import annotations
 PARALLAX_FRAME_AUDIT = {
     "name": "parallax_frame_audit",
     "description": (
-        "Audit a sensitive, geopolitical, policy, or research question across two contrasting "
-        "epistemic lenses to separate agreed primary-source facts from silent omissions and "
-        "verbatim rhetorical spin. Works in zero-config live mode via Hermes auxiliary slots "
-        "(parallax_lens_a, parallax_lens_b, parallax_judge) or offline comparison mode when "
-        "lens_a_text and lens_b_text are supplied directly."
+        "Audit a sensitive, geopolitical, domestic policy, institutional, or research question "
+        "across two contrasting epistemic lenses to separate agreed primary-source facts from "
+        "silent omissions and verbatim rhetorical spin (covering foreign state-aligned, Western/US "
+        "national-security, US domestic progressive-institutional & populist-conservative, "
+        "corporate PR, and safety-boilerplate poles symmetrically). Works in zero-config live mode "
+        "via Hermes auxiliary slots (parallax_lens_a, parallax_lens_b, parallax_judge) or offline "
+        "comparison mode when lens_a_text and lens_b_text are supplied directly."
     ),
     "parameters": {
         "type": "object",
@@ -34,6 +36,17 @@ PARALLAX_FRAME_AUDIT = {
                     "zero-LLM lexical and claim comparison."
                 ),
             },
+            "regenerate": {
+                "type": "boolean",
+                "description": (
+                    "When true, ignores supplied lens_a_text/lens_b_text and generates fresh "
+                    "completions through Hermes ctx.llm."
+                ),
+            },
+            "category": {
+                "type": "string",
+                "description": "Optional category tag if a divergence pair is auto-curated.",
+            },
         },
         "required": ["prompt"],
     },
@@ -43,10 +56,11 @@ PARALLAX_CODE_AUDIT = {
     "name": "parallax_code_audit",
     "description": (
         "Run a blind counterfactual security taste-test on a coding task. Scrubs geopolitical, "
-        "sovereign, defense, intelligence, or advocacy organization names into neutral enterprise "
-        "placeholders (NeutralOrg_1), compares the contextual code output against the scrubbed "
-        "output using Python AST and multi-language security sink analysis, and flags silent "
-        "context-triggered security regressions (CONTEXT_DEGRADED or CONTEXT_REFUSED)."
+        "sovereign, defense, intelligence, domestic advocacy, or sanctioned tech organization "
+        "names into neutral enterprise placeholders (NeutralOrg_1), compares the contextual code "
+        "output against the scrubbed output using Python AST and multi-language security sink "
+        "analysis, and flags silent context-triggered security regressions (CONTEXT_DEGRADED or "
+        "CONTEXT_REFUSED)."
     ),
     "parameters": {
         "type": "object",
@@ -67,6 +81,13 @@ PARALLAX_CODE_AUDIT = {
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional additional organization or regional names to scrub in the blind run.",
+            },
+            "regenerate": {
+                "type": "boolean",
+                "description": (
+                    "When true, ignores supplied contextual_reply/blind_reply and generates fresh "
+                    "contextual and blind completions through Hermes ctx.llm."
+                ),
             },
         },
         "required": ["prompt"],

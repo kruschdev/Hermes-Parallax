@@ -32,7 +32,7 @@ Exports:
       "is_refusal": false,
       "is_deflection": false,
       "matched_frames": [
-        {"pole": "state_aligned|western_policy|corporate_pr|safety_boilerplate", "category": "str", "label": "str", "quoted_span": "exact substring"}
+        {"pole": "state_aligned|western_policy|us_progressive_institutional|us_populist_conservative|corporate_pr|safety_boilerplate", "category": "str", "label": "str", "quoted_span": "exact substring"}
       ],
       "citation_markers": 2,
       "hedge_ratio": 0.04,
@@ -58,6 +58,8 @@ Exports:
       "triggered": true
     }
     ```
+- `restore_identity_context(code_text: str, entity_map: list[dict] | None) -> str`
+  - Replaces `NeutralOrg_*` / `NeutralRegion_*` placeholders back with original entity strings (validating Python `ast.parse` preservation when applicable) before curating `chosen` implementations into `dpo_pairs`.
 - `audit_code_security(text: str, language_hint: str = "auto") -> dict`
   - Extracts code blocks (or raw code) and runs Python `ast` inspection + multi-language security sink rules (`sql_injection`, `weak_crypto`, `command_injection`, `unsafe_dynamic_exec`, `permissive_cors_tls`, `hardcoded_secret_sink`, `swallowed_exception_or_bypass`, `stub_or_truncation`).
   - **Safety constraint**: Never embed literal exploit shell pipelines or raw secret-file read strings that could trip Hermes `plugin_guard`; inspect via `ast` node attributes (`node.func`, `node.keywords`) and clean regex tokens.
@@ -81,7 +83,7 @@ Exports:
 - `dashboard/dist/index.js`: Zero-build IIFE consuming `window.__HERMES_PLUGIN_SDK__` (`React`, `hooks`, `components`, `fetchJSON`), rendering KPI cards and 3 interactive views:
   1. **Fact-vs-Frame Lens** (Agreed Facts, Silent Omissions, Verbatim Highlighted Spin + 1–5 Rubric Bars + Live/Offline Runner)
   2. **Blind Code Taste-Test** (Contextual vs. Scrubbed `NeutralOrg` Security Score `0–100`, `entity_map` badges, `CONTEXT_DEGRADED` vulnerability diff)
-  3. **DPO / SFT Dish Forge** (Interactive `accuracy / balance / independence` threshold sliders, live qualifying count, 1-click JSONL export)
+  3. **DPO / SFT Dataset Forge** (Interactive `accuracy / balance / independence` threshold sliders, live qualifying count, 1-click JSONL export)
 - `dashboard/plugin_api.py`: FastAPI `router = APIRouter()` with `async def` endpoints (`GET /summary`, `GET /presets`, `POST /analyze-frame`, `POST /analyze-code`, `POST /curate`, `POST /export`, `POST /seed-demo`) offloading sync work via `asyncio.to_thread`.
 
 ### 2.5 Root Manifest & Entrypoint Choke Points (Orchestrator)
@@ -92,4 +94,4 @@ Exports:
   - `provides_middleware`: `[]`
   - `requires_env`: `[]`
   - `config_schema`: `passive_watch` (`bool`, default `true`), `auto_curate_degraded_code` (`bool`, default `true`), `min_export_accuracy` (`int`, default `4`), `min_export_balance` (`int`, default `4`).
-- `__init__.py`: `register(ctx)` wiring the 3 auxiliary tasks (`parallax_lens_a`, `parallax_lens_b`, `parallax_judge`), 4 tools, `post_llm_call` passive lexical/AST observer, `/parallax` slash command, `parallax.summary` & `parallax.audit` RPC methods, and bundled `skills/parallax-methodology/SKILL.md`.
+- `__init__.py`: `register(ctx)` wiring the 3 auxiliary tasks (`parallax_lens_a`, `parallax_lens_b`, `parallax_judge`), 4 tools, `post_llm_call` passive lexical/AST observer, `/parallax` slash command, `plugin.parallax.summary` & `plugin.parallax.audit` RPC methods, and bundled `skills/parallax-methodology/SKILL.md`.

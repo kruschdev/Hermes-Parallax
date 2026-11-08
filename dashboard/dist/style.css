@@ -21,6 +21,12 @@
   --px-indigo: #818cf8;
   --px-indigo-bg: rgba(129, 140, 248, 0.13);
   --px-indigo-border: rgba(129, 140, 248, 0.35);
+  --px-sky: #38bdf8;
+  --px-sky-bg: rgba(56, 189, 248, 0.13);
+  --px-sky-border: rgba(56, 189, 248, 0.35);
+  --px-violet: #c084fc;
+  --px-violet-bg: rgba(192, 132, 252, 0.13);
+  --px-violet-border: rgba(192, 132, 252, 0.35);
 
   color: var(--px-card-fg);
   max-width: 1440px;
@@ -351,6 +357,18 @@
   color: var(--px-indigo);
 }
 
+.px-pill-sky {
+  background: var(--px-sky-bg);
+  border-color: var(--px-sky-border);
+  color: var(--px-sky);
+}
+
+.px-pill-violet {
+  background: var(--px-violet-bg);
+  border-color: var(--px-violet-border);
+  color: var(--px-violet);
+}
+
 .px-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
@@ -652,6 +670,11 @@
   border-color: var(--px-amber-border);
 }
 
+.px-verdict-banner.is-stronger {
+  background: var(--px-sky-bg);
+  border-color: var(--px-sky-border);
+}
+
 .px-scrub-strip {
   display: flex;
   flex-wrap: wrap;
@@ -687,7 +710,7 @@
   border-top: 1px dashed var(--px-border);
 }
 
-/* DPO / SFT Dish Forge */
+/* DPO / SFT Dataset Forge */
 .px-slider-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -757,6 +780,12 @@
 .px-ledger-row.is-dropped {
   opacity: 0.66;
   border-style: dashed;
+}
+
+.px-ledger-row.is-quarantined {
+  opacity: 0.88;
+  border-color: var(--px-rose-border);
+  background: var(--px-rose-bg);
 }
 
 .px-ledger-top {

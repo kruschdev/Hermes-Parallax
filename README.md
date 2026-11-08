@@ -12,10 +12,10 @@ I built **Hermes Parallax** as a zero-dependency, host-isolated (`plugins.isolat
 
 Inspired by the empirical findings around post-training value shifts and context-triggered code security regressions (such as models producing weaker SQL/crypto controls or stubbed handlers when geopolitical, sovereign, defense, or NGO identifiers appear in prompt prose):
 
-1. **Fact-vs-Frame Lens (`parallax_frame_audit`)**: Runs a prompt across contrasting Hermes auxiliary slots (`parallax_lens_a` and `parallax_lens_b`, or works zero-config on your active model with a primary-source counter-lens) and decomposes the answers into **Agreed Facts**, **Silent Omissions**, and **Verbatim Verified Spin** across all poles (`state_aligned`, `western_policy`, `corporate_pr`, and `safety_boilerplate`).
+1. **Fact-vs-Frame Lens (`parallax_frame_audit`)**: Runs a prompt across contrasting Hermes auxiliary slots (`parallax_lens_a` and `parallax_lens_b`, or works zero-config on your active model with a primary-source counter-lens) and decomposes the answers into **Agreed Facts**, **Silent Omissions**, and **Verbatim Verified Spin** across international and domestic poles symmetrically (`state_aligned`, `western_policy`, `us_progressive_institutional`, `us_populist_conservative`, `corporate_pr`, and `safety_boilerplate`).
 2. **Hard Verbatim Anti-Hallucination Gate**: Any spin quote claimed by the structured judge (`parallax_judge`) is checked character-for-character against the raw model outputs; non-verbatim quotes are automatically stripped and counted in `dropped_unverified_quotes`.
-3. **Blind Taste-Test for Code (`parallax_code_audit`)**: Masks sensitive organizational, defense, sovereign, and regional markers in prose (`NeutralOrg_1`, `NeutralRegion_1`) while keeping fenced code blocks, imports, and schemas intact. It then scores both outputs (`0–100`) with a deterministic Python `ast` + multi-language security sink analyzer (`sql_injection`, `weak_crypto`, `command_injection`, `unsafe_dynamic_exec`, `permissive_cors_tls`, `hardcoded_secret_sink`, `swallowed_exception_or_bypass`, `stub_or_truncation`) to expose `CONTEXT_DEGRADED` regressions.
-4. **Rubric-Gated DPO & SFT Dish Forge (`parallax_curate_pair`, `parallax_export_dataset`)**: Stores divergences in a profile-scoped SQLite WAL ledger (`<HERMES_HOME>/plugin-data/parallax/parallax.db`) and filters pairs on `accuracy` (`1–5`), `balance` (`1–5`), `independence` (`1–5`), and zero disqualifying `issue_tags` before exporting TRL-ready **DPO** or ChatML **SFT** JSONL datasets.
+3. **Blind Taste-Test for Code (`parallax_code_audit`)**: Masks sensitive organizational, defense, sovereign, domestic advocacy, sanctioned-tech, and regional markers in prose (`NeutralOrg_1`, `NeutralRegion_1`) while keeping fenced code blocks, imports, and schemas intact. It then scores both outputs (`0–100`) with a deterministic Python `ast` + multi-language security sink analyzer (`sql_injection`, `weak_crypto`, `command_injection`, `unsafe_dynamic_exec`, `permissive_cors_tls`, `hardcoded_secret_sink`, `swallowed_exception_or_bypass`, `stub_or_truncation`) to expose `CONTEXT_DEGRADED` regressions, restoring original entity names safely before curating DPO pairs.
+4. **Rubric-Gated DPO & SFT Dataset Forge (`parallax_curate_pair`, `parallax_export_dataset`)**: Stores divergences in a profile-scoped SQLite WAL ledger (`<HERMES_HOME>/plugin-data/parallax/parallax.db`), enforces deterministic AST/sink anti-poison quarantine at both curation and export time, and filters pairs on `accuracy` (`1–5`), `balance` (`1–5`), `independence` (`1–5`), and zero disqualifying `issue_tags` before exporting TRL-ready **DPO** or ChatML **SFT** JSONL datasets.
 5. **Hermes Web Dashboard Tab (`/parallax`)**: Ships a zero-build React dashboard extension (`window.__HERMES_PLUGIN_SDK__` + async FastAPI `APIRouter`) with 1-click demo presets, side-by-side frame & code scorecards, interactive rubric sliders, and live JSONL export previews.
 
 ---
@@ -79,7 +79,7 @@ auxiliary:
 Start `hermes dashboard` and open the **Parallax** tab (`/parallax`):
 - Click **Load Demo Traces** to explore pre-built framing and blind code security audits immediately without spending tokens.
 - Toggle **Use Live Hermes `ctx.llm`** or paste any two model outputs side-by-side.
-- Adjust the **Accuracy / Balance / Independence** sliders in the **DPO / SFT Dish Forge** to see how strict rubric filtering drops noisy pairs before exporting JSONL.
+- Adjust the **Accuracy / Balance / Independence** sliders in the **DPO / SFT Dataset Forge** to see how strict rubric filtering and deterministic anti-poison quarantine drop noisy pairs before exporting JSONL.
 
 ---
 
@@ -90,7 +90,7 @@ Start `hermes dashboard` and open the **Parallax** tab (`/parallax`):
 - **Host-Owned LLM Calls**: `ctx.llm.complete` & `ctx.llm.complete_structured`
 - **Lifecycle Hook**: `ctx.register_hook("post_llm_call", ...)` — lightweight `<1ms` local lexical/AST telemetry observer (makes **zero** background LLM or network calls)
 - **Slash Command**: `ctx.register_command("parallax", ...)`
-- **Gateway JSON-RPC**: `ctx.register_rpc("parallax.summary", ...)` & `ctx.register_rpc("parallax.audit", ...)`
+- **Gateway JSON-RPC**: `ctx.register_rpc("summary", ...)` & `ctx.register_rpc("audit", ...)` (wire methods: `plugin.parallax.summary` & `plugin.parallax.audit`)
 - **Bundled Skill**: `ctx.register_skill("parallax-methodology", ...)`
 - **Durable Profile Storage & Redaction**: `plugins.plugin_storage.plugin_data_dir` / `plugin_db` & `agent.redact.redact_sensitive_text(..., force=True)`
 - **Web Dashboard UI & API**: `dashboard/manifest.json`, `dashboard/dist/index.js`, `dashboard/dist/style.css`, and `dashboard/plugin_api.py`

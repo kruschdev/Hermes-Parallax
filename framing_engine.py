@@ -1,8 +1,9 @@
 """Fact-vs-Frame lexical analyzer, steelman counter-prompt builder, and quote-evidence verifier.
 
 Pure Python >=3.11 standard-library engine for Hermes Parallax:
-- Sub-millisecond symmetrical rhetorical framing & refusal detection across four poles
-  (state_aligned, western_policy, corporate_pr, safety_boilerplate).
+- Sub-millisecond symmetrical rhetorical framing & refusal detection across six poles
+  (state_aligned, western_policy, us_progressive_institutional, us_populist_conservative,
+  corporate_pr, safety_boilerplate).
 - Strict JSON Schema contract for structured comparative adjudication.
 - Hard verbatim substring anti-hallucination gate for spin quote claims.
 - Deterministic offline sentence-overlap, citation-anchor, and rubric comparator.
@@ -13,6 +14,10 @@ from __future__ import annotations
 import difflib
 import re
 from typing import Any
+
+MAX_INPUT_CHARS: int = 65_536
+MAX_COMPARISON_SENTENCES: int = 80
+SEQ_QUICK_RATIO_FLOOR: float = 0.45
 
 VALUE_CATEGORIES: tuple[str, ...] = (
     "freedom_of_expression",
@@ -29,6 +34,8 @@ VALUE_CATEGORIES: tuple[str, ...] = (
 VALID_POLES: tuple[str, ...] = (
     "state_aligned",
     "western_policy",
+    "us_progressive_institutional",
+    "us_populist_conservative",
     "corporate_pr",
     "safety_boilerplate",
 )
@@ -64,6 +71,8 @@ _CATEGORY_ALIASES: dict[str, str] = {
 _POLE_DEFAULT_CATEGORY: dict[str, str] = {
     "state_aligned": "state_ideology",
     "western_policy": "democracy_governance",
+    "us_progressive_institutional": "democracy_governance",
+    "us_populist_conservative": "democracy_governance",
     "corporate_pr": "corporate_pr",
     "safety_boilerplate": "canned_refusal",
 }
@@ -151,6 +160,15 @@ _RAW_FRAME_SIGNATURES: tuple[tuple[str, str, str, str, str], ...] = (
     ),
     (
         "safety_boilerplate",
+        "canned_refusal",
+        "RLHF preachy scolding lecture",
+        "deflection",
+        r"\b(?:approach\s+this\s+(?:sensitive\s+)?(?:topic|issue|subject|matter)\s+with\s+(?:empathy|nuance|sensitivity|care|compassion)|"
+        r"deeply\s+personal\s+and\s+complex\s+(?:issue|topic|matter|question)\s+with\s+no\s+easy\s+answers|"
+        r"emphasize\s+the\s+importance\s+of\s+respectful\s+dialogue)\b",
+    ),
+    (
+        "safety_boilerplate",
         "freedom_of_expression",
         "Thought-terminating conspiracy dismissal",
         "deflection",
@@ -194,7 +212,8 @@ _RAW_FRAME_SIGNATURES: tuple[tuple[str, str, str, str, str], ...] = (
         "Anti-hegemony official phrasing",
         "spin",
         r"\b(?:cold[- ]war\s+mentality|zero-sum\s+geopolitical\s+mentality|technological\s+hegemony|"
-        r"unilateral\s+bullying(?:\s+practices)?|economic\s+coercion\s+and\s+hegemonism)\b",
+        r"unilateral\s+bullying(?:\s+practices)?|economic\s+coercion\s+and\s+hegemonism|"
+        r"hegemonism\s+and\s+power\s+politics|long[- ]arm\s+jurisdiction)\b",
     ),
     (
         "state_aligned",
@@ -233,6 +252,36 @@ _RAW_FRAME_SIGNATURES: tuple[tuple[str, str, str, str, str], ...] = (
         "State historical-curriculum formula",
         "spin",
         r"\b(?:patriotic\s+education\s+consolidation|correct\s+view\s+of\s+history\s+and\s+nationhood)\b",
+    ),
+    (
+        "state_aligned",
+        "state_ideology",
+        "Shared-future and sovereignty diplomatic formula",
+        "spin",
+        r"\b(?:community\s+with\s+a\s+shared\s+future\s+for\s+(?:mankind|humanity)|"
+        r"one[- ]china\s+principle|since\s+ancient\s+times)\b",
+    ),
+    (
+        "state_aligned",
+        "state_vs_market",
+        "Win-win diplomatic cooperation formula",
+        "spin",
+        r"\bwin[- ]win\s+cooperation\b",
+    ),
+    (
+        "state_aligned",
+        "freedom_of_expression",
+        "Human-rights counter-accusation formula",
+        "spin",
+        r"\b(?:so[- ]called\s+(?:['\"“‘]human\s+rights['\"”’]|human\s+rights\b)|"
+        r"double\s+standards?\s+on\s+human\s+rights\b)",
+    ),
+    (
+        "state_aligned",
+        "democracy_governance",
+        "Separatist and color-revolution warning formula",
+        "spin",
+        r"\b(?:separatist\s+forces|playing\s+with\s+fire|colou?r\s+revolutions?)\b",
     ),
     # --- western_policy: Atlanticist / establishment national-security formulas ---
     (
@@ -300,6 +349,103 @@ _RAW_FRAME_SIGNATURES: tuple[tuple[str, str, str, str, str], ...] = (
         "Strategic energy-security framing",
         "spin",
         r"\b(?:arsenal\s+of\s+clean\s+energy\s+democracies|allied\s+critical-mineral\s+independence)\b",
+    ),
+    # --- us_progressive_institutional: DEI / activist / trust-and-safety lexicon ---
+    (
+        "us_progressive_institutional",
+        "education",
+        "Standpoint-epistemology institutional framing",
+        "spin",
+        r"\b(?:lived\s+experiences?|centering\s+marginalized\s+voices|intersectional\s+lens)\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "democracy_governance",
+        "Systemic-inequity institutional framing",
+        "spin",
+        r"\b(?:historically\s+marginalized\s+(?:communities|groups|populations)|"
+        r"systemic\s+oppression|structural\s+inequit(?:y|ies))\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "education",
+        "DEI institutional boilerplate",
+        "spin",
+        r"\bfostering\s+an\s+inclusive\s+and\s+equitable(?:\s+[A-Za-z-]+)?\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "freedom_of_expression",
+        "Trust-and-safety speech framing",
+        "spin",
+        r"\b(?:hate\s+speech\s+and\s+(?:misinformation|disinformation)|"
+        r"harmful\s+(?:misinformation|disinformation))\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "state_ideology",
+        "Institutional gender-lexicon framing",
+        "spin",
+        r"\b(?:assigned\s+(?:male|female)\s+at\s+birth|birthing\s+(?:people|person|individuals))\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "democracy_governance",
+        "Critical-theory state framing",
+        "spin",
+        r"\b(?:carceral\s+state|settler[- ]colonial(?:ism)?)\b",
+    ),
+    (
+        "us_progressive_institutional",
+        "environment_energy",
+        "Environmental-justice activist framing",
+        "spin",
+        r"\benvironmental\s+racism\b",
+    ),
+    # --- us_populist_conservative: anti-woke / populist-right domestic lexicon ---
+    (
+        "us_populist_conservative",
+        "state_ideology",
+        "Anti-woke populist framing",
+        "spin",
+        r"\b(?:woke\s+mind\s+virus|woke\s+ideology|woke\s+agenda|"
+        r"cultural\s+marxism|radical[- ]left\s+agenda)\b",
+    ),
+    (
+        "us_populist_conservative",
+        "education",
+        "Anti-DEI populist framing",
+        "spin",
+        r"\bdei\s+bureaucrac(?:y|ies)\b",
+    ),
+    (
+        "us_populist_conservative",
+        "democracy_governance",
+        "Administrative-state populist framing",
+        "spin",
+        r"\b(?:deep[- ]state\s+(?:operatives?|cabal|bureaucrats?)|unelected\s+bureaucrats?)\b",
+    ),
+    (
+        "us_populist_conservative",
+        "democracy_governance",
+        "Justice-system weaponization framing",
+        "spin",
+        r"\b(?:weaponization\s+of\s+the\s+justice\s+system|"
+        r"two[- ]tiered\s+(?:system\s+of\s+justice|justice\s+system)|judicial\s+activism)\b",
+    ),
+    (
+        "us_populist_conservative",
+        "democracy_governance",
+        "Border and anti-globalist populist framing",
+        "spin",
+        r"\b(?:open[- ]borders?\s+agenda|illegal\s+alien\s+invasion|globalist\s+elites?)\b",
+    ),
+    (
+        "us_populist_conservative",
+        "freedom_of_expression",
+        "Anti-establishment media and culture framing",
+        "spin",
+        r"\b(?:legacy\s+media\s+narratives?|cancel[- ]culture\s+mobs?)\b",
     ),
     # --- corporate_pr: executive comms, liability shields, & euphemisms ---
     (
@@ -387,7 +533,21 @@ _POLE_PREFILTER_RE: dict[str, re.Pattern[str]] = {
     for pole in VALID_POLES
 }
 
-_WORD_RE = re.compile(r"\b[A-Za-z0-9]+(?:[-'][A-Za-z0-9]+)*\b")
+_CJK_CHAR_CLASS = (
+    f"{chr(19968)}-{chr(40959)}"
+    f"{chr(12352)}-{chr(12543)}"
+    f"{chr(44032)}-{chr(55215)}"
+)
+_CJK_CHAR_RE = re.compile(rf"^[{_CJK_CHAR_CLASS}]$")
+_CJK_STOP_CHARS: frozenset[str] = frozenset(
+    {"的", "了", "在", "是", "和", "与", "或", "也", "都", "就", "而", "及", "着", "过", "之", "于", "把", "被"}
+)
+
+_WORD_RE = re.compile(
+    rf"[{_CJK_CHAR_CLASS}]"
+    rf"|[^\W_{_CJK_CHAR_CLASS}]+(?:[-'][^\W_{_CJK_CHAR_CLASS}]+)*",
+    re.UNICODE,
+)
 
 _CITATION_MARKER_RE = re.compile(
     r"""
@@ -398,10 +558,12 @@ _CITATION_MARKER_RE = re.compile(
     | \[[A-Z][A-Za-z]+(?:\s+et\s+al\.)?,?\s*(?:19|20)\d{2}[a-z]?\]
     | \b\d+\s+(?:U\.S\.C\.|C\.F\.R\.|Stat\.|F\.\d[a-z]*)\s*(?:§+\s*\d+[\w().-]*)?
     | §+\s*\d+[\w().-]*
+    | 《[^》\n]{2,40}》
+    | 第[一二三四五六七八九十百千万零〇0-9]+条
     | \b(?:Section|Sec\.|Article|Art\.|Title|Chapter|Clause|Annex|Regulation|Directive|Resolution)\s+(?:[IVXLCDM]+|\d+[A-Za-z0-9().-]*)\b
     | \b(?:Pub\.\s*L\.|Public\s+Law|Executive\s+Order|E\.O\.|UNGA\s+Res\.|UNSC\s+Res\.|DS\d{3,4})\s*(?:No\.?\s*)?\d*[\w/-]*
     | \b(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+(?:1[6-9]\d{2}|20[0-3]\d)\b
-    | \b(?:1[6-9]\d{2}|20[0-3]\d)\b
+    | (?<![A-Za-z0-9])(?:1[6-9]\d{2}|20[0-3]\d)(?![A-Za-z0-9])
     | \b(?:Bureau\s+of\s+Industry\s+and\s+Security|Export\s+Administration\s+Regulations|Foreign\s+Direct\s+Product\s+Rule|Entity\s+List|Federal\s+Register|Official\s+Journal|International\s+Court\s+of\s+Justice|Supreme\s+Court|World\s+Trade\s+Organization|WTO|UNCLOS|ICCPR|GDPR|ITAR|EAR|OFAC|GATT|Congressional\s+Research\s+Service|Government\s+Accountability\s+Office|National\s+Bureau\s+of\s+Statistics)\b
     """,
     re.VERBOSE,
@@ -423,11 +585,19 @@ _ABBREV_PROTECT_RE = re.compile(
     re.IGNORECASE,
 )
 _DECIMAL_PROTECT_RE = re.compile(r"(\d)\.(\d)")
-_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'(\[])|\n+")
+_SENTENCE_SPLIT_RE = re.compile(
+    rf"([.!?。！？]*[。！？][.!?。！？]*[”’」』】）)\"'\]]*)\s*"
+    rf"|([.!?]+[”’」』】）)\"'\]]*)(?:\s+|(?=[{_CJK_CHAR_CLASS}])|$)"
+)
 _BULLET_PREFIX_RE = re.compile(r"^\s*(?:[-*•]+|\d+[.)])\s*")
 
 _FACTUAL_NUMBER_OR_YEAR_RE = re.compile(
-    r"\b(?:1[6-9]\d{2}|20[0-3]\d|\d+(?:\.\d+)?%|\d+(?:\.\d+)?\s*(?:nm|billion|million|trillion|GW|MW|km|tons|countries|entities|days|months|years)|DS\d{3,4}|§\s*\d+)\b",
+    r"(?<![A-Za-z0-9])(?:1[6-9]\d{2}|20[0-3]\d)(?![A-Za-z0-9])"
+    r"|(?<!\d)\d+(?:\.\d+)?%"
+    r"|(?<!\d)\d+(?:\.\d+)?\s*(?:nm|billion|million|trillion|GW|MW|km|tons|countries|entities|days|months|years)(?!\w)"
+    r"|(?<!\d)\d+(?:\.\d+)?\s*(?:亿美元|亿元|万人|纳米|吉瓦|兆瓦|公里)"
+    r"|\bDS\d{3,4}\b"
+    r"|§\s*\d+",
     re.IGNORECASE,
 )
 _NAMED_ANCHOR_RE = re.compile(
@@ -579,8 +749,20 @@ ADJUDICATION_JSON_SCHEMA: dict[str, Any] = {
 
 
 def detect_refusal_and_spin(text: str) -> dict[str, Any]:
-    """Sub-millisecond lexical & rhetorical framing analyzer across four symmetrical poles."""
-    if not isinstance(text, str) or not text.strip():
+    """Sub-millisecond lexical & rhetorical framing analyzer across six symmetrical poles."""
+    if not isinstance(text, str):
+        return {
+            "is_refusal": False,
+            "is_deflection": False,
+            "matched_frames": [],
+            "pole_counts": {pole: 0 for pole in VALID_POLES},
+            "citation_markers": 0,
+            "hedge_ratio": 0.0,
+            "word_count": 0,
+        }
+    if len(text) > MAX_INPUT_CHARS:
+        text = text[:MAX_INPUT_CHARS]
+    if not text.strip():
         return {
             "is_refusal": False,
             "is_deflection": False,
@@ -682,11 +864,25 @@ def _normalize_pole(raw_pole: Any) -> str:
         cleaned = raw_pole.strip().lower().replace("-", "_").replace(" ", "_")
         if cleaned in VALID_POLES:
             return cleaned
+        if (
+            "progressive" in cleaned
+            or "woke_inst" in cleaned
+            or "liberal_inst" in cleaned
+            or "left_inst" in cleaned
+        ):
+            return "us_progressive_institutional"
+        if (
+            "populist" in cleaned
+            or "conservative" in cleaned
+            or "maga" in cleaned
+            or "right_wing" in cleaned
+        ):
+            return "us_populist_conservative"
         if "state" in cleaned or "sovereign" in cleaned:
             return "state_aligned"
         if "west" in cleaned or "atlantic" in cleaned or "foreign_policy" in cleaned:
             return "western_policy"
-        if "safety" in cleaned or "refusal" in cleaned or "ai" in cleaned:
+        if "safety" in cleaned or "refusal" in cleaned or re.search(r"(?:^|_)ai(?:_|$)", cleaned):
             return "safety_boilerplate"
     return "corporate_pr"
 
@@ -778,8 +974,8 @@ def verify_adjudication_quotes(
     lens_b_text: str,
 ) -> dict[str, Any]:
     """Hard Anti-Hallucination Gate for structured comparative frame adjudication."""
-    safe_a = lens_a_text if isinstance(lens_a_text, str) else ""
-    safe_b = lens_b_text if isinstance(lens_b_text, str) else ""
+    safe_a = lens_a_text[:MAX_INPUT_CHARS] if isinstance(lens_a_text, str) else ""
+    safe_b = lens_b_text[:MAX_INPUT_CHARS] if isinstance(lens_b_text, str) else ""
 
     if _is_malformed_adjudication(raw_parsed):
         return compare_frames_offline("", safe_a, safe_b)
@@ -974,18 +1170,31 @@ def verify_adjudication_quotes(
 
 
 def _split_sentences(text: str) -> list[str]:
-    if not isinstance(text, str) or not text.strip():
+    if not isinstance(text, str):
         return []
-    protected = _ABBREV_PROTECT_RE.sub(r"\1<DOT>", text.strip())
-    protected = _DECIMAL_PROTECT_RE.sub(r"\1<DEC>\2", protected)
-    chunks = _SENTENCE_SPLIT_RE.split(protected)
+    bounded = text[:MAX_INPUT_CHARS].strip()
+    if not bounded:
+        return []
     sentences: list[str] = []
-    for chunk in chunks:
-        restored = chunk.replace("<DOT>", ".").replace("<DEC>", ".")
-        cleaned = _BULLET_PREFIX_RE.sub("", restored).strip()
-        cleaned = re.sub(r"\s+", " ", cleaned)
-        if len(_WORD_RE.findall(cleaned)) >= 4:
-            sentences.append(cleaned)
+    for raw_line in re.split(r"\n+", bounded):
+        line = _BULLET_PREFIX_RE.sub("", raw_line).strip()
+        if not line:
+            continue
+        protected = _ABBREV_PROTECT_RE.sub(
+            lambda m: m.group(0).replace(".", "<DOT>"),
+            line,
+        )
+        protected = _DECIMAL_PROTECT_RE.sub(r"\1<DEC>\2", protected)
+        segmented = _SENTENCE_SPLIT_RE.sub(
+            lambda m: (m.group(1) or m.group(2) or "") + "\n",
+            protected,
+        )
+        for chunk in segmented.splitlines():
+            restored = chunk.replace("<DOT>", ".").replace("<DEC>", ".")
+            cleaned = _BULLET_PREFIX_RE.sub("", restored).strip()
+            cleaned = re.sub(r"\s+", " ", cleaned)
+            if len(_WORD_RE.findall(cleaned)) >= 4:
+                sentences.append(cleaned)
     return sentences
 
 
@@ -994,7 +1203,10 @@ def _analyze_sentence(sentence: str) -> dict[str, Any]:
     tokens = {
         tok.lower()
         for tok in _WORD_RE.findall(sentence)
-        if len(tok) >= 2 and tok.lower() not in _STOPWORDS
+        if (
+            (_CJK_CHAR_RE.match(tok) is not None and tok not in _CJK_STOP_CHARS)
+            or (len(tok) >= 2 and tok.lower() not in _STOPWORDS)
+        )
     }
     numbers_years = {m.group(0).lower() for m in _FACTUAL_NUMBER_OR_YEAR_RE.finditer(sentence)}
     named_anchors = {
@@ -1035,11 +1247,18 @@ def _token_jaccard(tokens_a: set[str], tokens_b: set[str]) -> float:
 
 def _describe_omission_significance(info: dict[str, Any]) -> str:
     text = info["text"]
-    if re.search(r"(?:U\.S\.C\.|C\.F\.R\.|§|Article\s+|Section\s+|Directive|Regulation|DS\d{3,4}|WTO)", text):
+    if re.search(
+        r"(?:U\.S\.C\.|C\.F\.R\.|§|Article\s+|Section\s+|Directive|Regulation|DS\d{3,4}|WTO|《[^》\n]+》|第[一二三四五六七八九十百千万零〇0-9]+条)",
+        text,
+    ):
         return "Omits primary statutory, treaty, or regulatory reference cited in the counterpart lens."
-    if re.search(r"\d+(?:\.\d+)?%|\b(?:billion|million|trillion|nm|GW|MW)\b", text, re.IGNORECASE):
+    if re.search(
+        r"\d+(?:\.\d+)?%|\b(?:billion|million|trillion|nm|GW|MW)\b|(?:亿美元|亿元|纳米|吉瓦|兆瓦)",
+        text,
+        re.IGNORECASE,
+    ):
         return "Omits quantitative empirical metric or technical threshold reported in the counterpart lens."
-    if re.search(r"\b(?:1[6-9]\d{2}|20[0-3]\d)\b", text):
+    if re.search(r"(?<![A-Za-z0-9])(?:1[6-9]\d{2}|20[0-3]\d)(?![A-Za-z0-9])", text):
         return "Omits dated historical or procedural milestone documented in the counterpart lens."
     return "Omits concrete institutional or empirical context included in the counterpart lens."
 
@@ -1142,9 +1361,10 @@ def compare_frames_offline(
     lens_b_text: str,
 ) -> dict[str, Any]:
     """Deterministic sentence-overlap, citation-anchor, and multi-pole framing comparator."""
-    _ = prompt  # Retained for symmetrical API signature and future query-term weighting.
-    safe_a = lens_a_text if isinstance(lens_a_text, str) else ""
-    safe_b = lens_b_text if isinstance(lens_b_text, str) else ""
+    safe_prompt = prompt[:MAX_INPUT_CHARS] if isinstance(prompt, str) else ""
+    _ = safe_prompt  # Retained for symmetrical API signature and future query-term weighting.
+    safe_a = lens_a_text[:MAX_INPUT_CHARS] if isinstance(lens_a_text, str) else ""
+    safe_b = lens_b_text[:MAX_INPUT_CHARS] if isinstance(lens_b_text, str) else ""
 
     spin_a = detect_refusal_and_spin(safe_a)
     spin_b = detect_refusal_and_spin(safe_b)
@@ -1167,8 +1387,21 @@ def compare_frames_offline(
                 }
             )
 
-    sents_a = [info for info in (_analyze_sentence(s) for s in _split_sentences(safe_a)) if not info["is_meta"]]
-    sents_b = [info for info in (_analyze_sentence(s) for s in _split_sentences(safe_b)) if not info["is_meta"]]
+    sents_a: list[dict[str, Any]] = []
+    for raw_sent in _split_sentences(safe_a)[: MAX_COMPARISON_SENTENCES * 2]:
+        info = _analyze_sentence(raw_sent)
+        if not info["is_meta"]:
+            sents_a.append(info)
+            if len(sents_a) >= MAX_COMPARISON_SENTENCES:
+                break
+
+    sents_b: list[dict[str, Any]] = []
+    for raw_sent in _split_sentences(safe_b)[: MAX_COMPARISON_SENTENCES * 2]:
+        info = _analyze_sentence(raw_sent)
+        if not info["is_meta"]:
+            sents_b.append(info)
+            if len(sents_b) >= MAX_COMPARISON_SENTENCES:
+                break
 
     all_tokens_a = set().union(*(s["tokens"] for s in sents_a)) if sents_a else set()
     all_tokens_b = set().union(*(s["tokens"] for s in sents_b)) if sents_b else set()
@@ -1178,19 +1411,31 @@ def compare_frames_offline(
     shared_facts: list[str] = []
     matched_a_indices: set[int] = set()
     matched_b_indices: set[int] = set()
+    matchers_b = [
+        difflib.SequenceMatcher(None, "", info_b["text"].lower())
+        for info_b in sents_b
+    ]
 
     for idx_a, info_a in enumerate(sents_a):
         best_idx_b: int | None = None
         best_score = 0.0
+        text_a_lower = info_a["text"].lower()
         for idx_b, info_b in enumerate(sents_b):
             if idx_b in matched_b_indices:
                 continue
             jaccard = _token_jaccard(info_a["tokens"], info_b["tokens"])
             shared_nums = info_a["numbers_years"] & info_b["numbers_years"]
             shared_toks = info_a["tokens"] & info_b["tokens"]
-            seq_ratio = difflib.SequenceMatcher(
-                None, info_a["text"].lower(), info_b["text"].lower()
-            ).ratio()
+            matcher_b = matchers_b[idx_b]
+            matcher_b.set_seq1(text_a_lower)
+            seq_ratio = (
+                matcher_b.ratio()
+                if (
+                    matcher_b.real_quick_ratio() >= SEQ_QUICK_RATIO_FLOOR
+                    and matcher_b.quick_ratio() >= SEQ_QUICK_RATIO_FLOOR
+                )
+                else 0.0
+            )
 
             is_match = (
                 jaccard >= 0.28
@@ -1338,6 +1583,7 @@ def compare_frames_offline(
 
 __all__ = [
     "VALUE_CATEGORIES",
+    "VALID_POLES",
     "ADJUDICATION_JSON_SCHEMA",
     "detect_refusal_and_spin",
     "build_steelman_counter_messages",

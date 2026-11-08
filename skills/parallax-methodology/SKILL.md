@@ -15,7 +15,7 @@ Single-model answers often entangle verifiable facts with institutional framing 
 2. Inspect the three separated buckets before answering the user:
    - **`shared_facts`**: Concrete dates, numbers, statutory provisions, and empirical claims corroborated across both lenses.
    - **`silent_omissions`**: Specific facts surfaced by one lens that the other omitted.
-   - **`verified_spin_quotes`**: Rhetorical boilerplate across any pole (`state_aligned`, `western_policy`, `corporate_pr`, `safety_boilerplate`). Every spin quote is verified as a verbatim substring of the model output; non-verbatim judge claims are automatically discarded in `dropped_unverified_quotes`.
+   - **`verified_spin_quotes`**: Rhetorical boilerplate across international and domestic poles symmetrically (`state_aligned`, `western_policy`, `us_progressive_institutional`, `us_populist_conservative`, `corporate_pr`, `safety_boilerplate`). Every spin quote is verified as a verbatim substring of the model output; non-verbatim judge claims are automatically discarded in `dropped_unverified_quotes`.
 3. Present primary-source facts first, explicitly note material omissions, and let the user decide how to weigh competing interpretations.
 
 ## 2. Blind Taste-Test for Code Security (`parallax_code_audit`)
