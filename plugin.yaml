@@ -1,0 +1,46 @@
+name: parallax
+version: "0.1.0"
+manifest_version: 2
+api_version: 1
+description: "Multi-perspective fact-vs-frame lens, blind code security taste-test, and rubric-gated DPO/SFT dataset forge for Hermes Agent"
+author: kruschdev
+license: MIT
+homepage: https://github.com/kruschdev/hermes-parallax
+requires_hermes: ">=0.22.3"
+tags:
+  - evaluation
+  - alignment
+  - security
+  - code-audit
+  - dpo
+  - dashboard
+provides_tools:
+  - parallax_frame_audit
+  - parallax_code_audit
+  - parallax_curate_pair
+  - parallax_export_dataset
+provides_hooks:
+  - post_llm_call
+provides_middleware: []
+requires_env: []
+config_schema:
+  passive_watch:
+    type: bool
+    default: true
+    label: "Passive Turn Telemetry"
+    description: "Run zero-LLM <1ms framing and code-security telemetry on completed assistant turns"
+  auto_curate_degraded_code:
+    type: bool
+    default: true
+    label: "Auto-Curate Context-Degraded Code Pairs"
+    description: "Automatically save a preference pair when a blind code taste-test catches a context-induced security drop"
+  min_export_accuracy:
+    type: int
+    default: 4
+    label: "Default Export Min Accuracy (1-5)"
+    description: "Default minimum accuracy rubric score required when exporting DPO/SFT JSONL datasets"
+  min_export_balance:
+    type: int
+    default: 4
+    label: "Default Export Min Balance (1-5)"
+    description: "Default minimum balance rubric score required when exporting DPO/SFT JSONL datasets"

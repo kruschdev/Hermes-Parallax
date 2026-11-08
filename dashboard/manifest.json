@@ -1,0 +1,14 @@
+{
+  "name": "parallax",
+  "label": "Parallax",
+  "description": "Multi-perspective framing lens, blind code security taste-test, and rubric-gated DPO/SFT dataset forge",
+  "icon": "Shield",
+  "version": "0.1.0",
+  "tab": {
+    "path": "/parallax",
+    "position": "after:skills"
+  },
+  "entry": "dist/index.js",
+  "css": "dist/style.css",
+  "api": "plugin_api.py"
+}
