@@ -8,6 +8,14 @@ I built **Hermes Parallax** as a zero-dependency, host-isolated (`plugins.isolat
 
 ---
 
+## 🎬 Narrated Showcase & 7-Model Empirical Benchmark (`1080p`)
+
+[![Watch the Hermes Parallax v0.1.0 Narrated Showcase (02:05 · 1080p HD)](docs/assets/hermes-parallax-video-card.jpg)](docs/assets/hermes-parallax-showcase.mp4)
+
+> ▶️ **[Watch 1080p HD Narrated Showcase (`02:05`, with audio)](docs/assets/hermes-parallax-showcase.mp4)** · **[Closed Captions (`.srt`)](docs/assets/hermes-parallax-showcase.srt)** — Evaluated live across **`168` completions and `111` Parallax audits spanning `7` local models (`$0.00` multi-GPU)**: `Nous Arete-27B` swept `Stock Qwen3-Coder-30B` **`6–0`** (`3.94` vs. `2.61` judged cross-family by `Google Gemma-4-E4B`) and was the sole model scoring **`100/100` across all `18/18`** contextual and `NeutralOrg`-blind AST code security runs (`83/85` judge spin quotes verified character-for-character; `2` markdown-stripped quote hallucinations blocked in real time; `16` Gold TRL DPO preference pairs forged with `0` poisoned leaks).
+
+---
+
 ## Why I Built Parallax
 
 Inspired by the empirical findings around post-training value shifts and context-triggered code security regressions (such as models producing weaker SQL/crypto controls or stubbed handlers when geopolitical, sovereign, defense, or NGO identifiers appear in prompt prose):

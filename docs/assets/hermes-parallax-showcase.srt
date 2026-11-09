@@ -1,0 +1,63 @@
+1
+00:00:00,400 --> 00:00:11,042
+Language models ship with hidden institutional priors—tangling facts with spin, refusing valid research, and degrading code security based on who is named.
+
+2
+00:00:11,082 --> 00:00:12,490
+Meet Hermes Parallax.
+
+3
+00:00:13,500 --> 00:00:22,813
+Built for Hermes Agent with zero external dependencies, the Fact-vs-Frame Lens pits models head-to-head.
+
+4
+00:00:22,853 --> 00:00:29,828
+Judged live by Google Gemma 4, Stock Qwen3-30B refuses citing PRC law (1.3/5),
+
+5
+00:00:29,868 --> 00:00:37,113
+while Nous Arete-27B details DNS poisoning and archival casualty records (4.0/5).
+
+6
+00:00:37,633 --> 00:00:48,769
+Every spin quote is checked character-for-character: when Gemma 4 stripped markdown bolding from Arete, the Anti-Hallucination Gate blocked it in real time.
+
+7
+00:00:48,809 --> 00:00:55,504
+Switch to US campus speech, and Parallax flags progressive and populist framing symmetrically.
+
+8
+00:00:56,033 --> 00:01:07,830
+Second: the Blind Code Taste-Test scrubs 42+ entity names to NeutralOrg_1 and audits both replies via Python AST—catching a 44 vs.
+
+9
+00:01:07,870 --> 00:01:15,843
+100 security drop (MD5 + SQLi) and +28 pt uncoached blind lifts on Hermes-4 and Gemma 4.
+
+10
+00:01:16,367 --> 00:01:18,917
+Third: the Dataset Forge sets Accuracy,
+
+11
+00:01:18,957 --> 00:01:24,762
+Balance, and Independence floors, quarantines refusals, spin, or vulnerable code fences,
+
+12
+00:01:24,802 --> 00:01:28,414
+and exports clean TRL DPO and ChatML SFT training data.
+
+13
+00:01:29,400 --> 00:01:34,087
+Across 168 live completions spanning 7 local models,
+
+14
+00:01:34,127 --> 00:01:47,904
+Nous Arete-27B swept Stock Qwen 6–0 and was the sole model scoring 100/100 across all 18 code runs—while Arete DPO lifted 30B independence at 127 tok/s.
+
+15
+00:01:48,900 --> 00:01:58,688
+Install Parallax in one command for 4 agent tools, 3 auxiliary model slots, a <1ms passive hook, /parallax CLI, and the 3-tab dashboard.
+
+16
+00:01:58,728 --> 00:02:03,458
+Hermes Parallax: separate facts from spin, and own your alignment.
