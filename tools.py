@@ -23,6 +23,7 @@ from .storage_dpo import (
     curate_dpo_pair,
     export_training_dataset,
     get_audit,
+    get_dashboard_summary,
     record_audit,
     safe_redact,
 )
@@ -507,6 +508,113 @@ def run_export_dataset(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
     return exported
 
 
+def _truncate_preview(text: Any, max_chars: int = 240) -> str:
+    raw = " ".join(str(text or "").split())
+    if len(raw) <= max_chars:
+        return raw
+    return raw[: max_chars - 1].rstrip() + "…"
+
+
+def _compact_audit_row(audit: dict[str, Any]) -> dict[str, Any]:
+    payload = audit.get("payload") if isinstance(audit.get("payload"), dict) else {}
+    headline = str(
+        payload.get("recommended_synthesis")
+        or payload.get("summary")
+        or payload.get("note")
+        or ""
+    ).strip()
+    if not headline and audit.get("kind") == "passive":
+        code_findings = payload.get("code_findings") or []
+        matched = (payload.get("spin") or {}).get("matched_frames") or []
+        if code_findings:
+            headline = f"{len(code_findings)} passive code security finding(s) flagged."
+        elif matched:
+            labels = ", ".join(str(m.get("pole") or "") for m in matched[:3] if m.get("pole"))
+            headline = f"Passive framing markers detected ({labels or len(matched)})."
+    return {
+        "audit_id": audit.get("audit_id", ""),
+        "created_at": audit.get("created_at", ""),
+        "kind": audit.get("kind", ""),
+        "verdict": audit.get("verdict", ""),
+        "security_delta": int(audit.get("security_delta") or 0),
+        "spin_count": int(audit.get("spin_count") or 0),
+        "omission_count": int(audit.get("omission_count") or 0),
+        "prompt_preview": _truncate_preview(audit.get("prompt", ""), 240),
+        "headline": _truncate_preview(headline, 280),
+    }
+
+
+def _compact_pair_row(pair: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "pair_id": pair.get("pair_id", ""),
+        "created_at": pair.get("created_at", ""),
+        "category": pair.get("category", "general"),
+        "audit_id": pair.get("audit_id"),
+        "accuracy": int(pair.get("accuracy") or 0),
+        "balance": int(pair.get("balance") or 0),
+        "independence": int(pair.get("independence") or 0),
+        "issue_tags": list(pair.get("issue_tags") or []),
+        "qualifies_gold": bool(pair.get("qualifies_gold", False)),
+        "prompt_preview": _truncate_preview(pair.get("prompt", ""), 200),
+    }
+
+
+def run_ledger_status(ctx: Any, args: dict[str, Any]) -> dict[str, Any]:
+    """Inspect Parallax SQLite KPIs, recent compact audits/pairs, or a specific audit_id."""
+    del ctx  # Read-only ledger query does not require live LLM context
+    audit_id = str(args.get("audit_id") or "").strip()
+    kind_filter = str(args.get("kind") or "all").strip().lower() or "all"
+    if kind_filter not in {"all", "frame", "code", "passive"}:
+        return {
+            "ok": False,
+            "error": "Unsupported kind filter; expected 'all', 'frame', 'code', or 'passive'.",
+        }
+
+    limit = _coerce_int(args.get("limit"), default=10, lo=1, hi=50)
+    include_pairs = _coerce_bool(args.get("include_pairs"), default=True)
+
+    if audit_id:
+        summary = get_dashboard_summary(limit=5)
+        record = get_audit(audit_id)
+        data_dir = summary.get("display_data_dir") or summary.get("data_dir", "")
+        if record is None:
+            return {
+                "ok": False,
+                "error": f"Audit {audit_id!r} not found in Parallax ledger.",
+                "kpis": summary.get("kpis", {}),
+                "data_dir": data_dir,
+            }
+        return {
+            "ok": True,
+            "mode": "audit_detail",
+            "audit": record,
+            "kpis": summary.get("kpis", {}),
+            "data_dir": data_dir,
+        }
+
+    fetch_limit = limit if kind_filter == "all" else min(200, max(limit * 4, 50))
+    summary = get_dashboard_summary(limit=fetch_limit)
+    raw_audits = summary.get("recent_audits") or []
+    filtered_audits = [
+        row for row in raw_audits if kind_filter == "all" or row.get("kind") == kind_filter
+    ][:limit]
+    compact_audits = [_compact_audit_row(row) for row in filtered_audits]
+    compact_pairs = (
+        [_compact_pair_row(row) for row in (summary.get("recent_pairs") or [])[:limit]]
+        if include_pairs
+        else []
+    )
+    return {
+        "ok": True,
+        "mode": "summary",
+        "kind_filter": kind_filter,
+        "kpis": summary.get("kpis", {}),
+        "recent_audits": compact_audits,
+        "recent_pairs": compact_pairs,
+        "data_dir": summary.get("display_data_dir") or summary.get("data_dir", ""),
+    }
+
+
 def handle_frame_audit(ctx: Any, args: dict[str, Any], **kwargs: Any) -> str:
     try:
         return json.dumps(run_frame_audit(ctx, args or {}), ensure_ascii=False)
@@ -533,6 +641,13 @@ def handle_export_dataset(ctx: Any, args: dict[str, Any], **kwargs: Any) -> str:
         return json.dumps(run_export_dataset(ctx, args or {}), ensure_ascii=False)
     except Exception as exc:
         return json.dumps({"ok": False, "error": f"parallax_export_dataset failed: {exc}"}, ensure_ascii=False)
+
+
+def handle_ledger_status(ctx: Any, args: dict[str, Any], **kwargs: Any) -> str:
+    try:
+        return json.dumps(run_ledger_status(ctx, args or {}), ensure_ascii=False)
+    except Exception as exc:
+        return json.dumps({"ok": False, "error": f"parallax_ledger_status failed: {exc}"}, ensure_ascii=False)
 
 
 def observe_turn_telemetry(

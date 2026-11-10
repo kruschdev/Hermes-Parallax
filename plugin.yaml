@@ -19,6 +19,7 @@ provides_tools:
   - parallax_code_audit
   - parallax_curate_pair
   - parallax_export_dataset
+  - parallax_ledger_status
 provides_hooks:
   - post_llm_call
 provides_middleware: []

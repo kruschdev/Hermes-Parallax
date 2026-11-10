@@ -38,6 +38,7 @@ def _handle_slash_parallax(ctx: Any, raw_args: str, **kwargs: Any) -> str:
             "",
             "Commands:",
             "  /parallax status                  — Show audit & dataset ledger metrics",
+            "  /parallax inspect <audit_id>      — Show full stored verdict & findings for an audit",
             "  /parallax seed                    — Populate built-in demo audits & pairs",
             "  /parallax frame <question>        — Run dual-lens fact-vs-frame audit",
             "  /parallax code <coding prompt>    — Run blind entity-scrubbed code security test",
@@ -48,6 +49,27 @@ def _handle_slash_parallax(ctx: Any, raw_args: str, **kwargs: Any) -> str:
     parts = text.split(maxsplit=1)
     sub = parts[0].lower()
     rest = parts[1].strip() if len(parts) > 1 else ""
+
+    if sub == "inspect":
+        if not rest:
+            return "Usage: /parallax inspect <audit_id>"
+        detail = tools.run_ledger_status(ctx, {"audit_id": rest})
+        if not detail.get("ok"):
+            return f"Parallax inspect error: {detail.get('error')}"
+        aud = detail.get("audit") or {}
+        pl = aud.get("payload") if isinstance(aud.get("payload"), dict) else {}
+        headline = (
+            pl.get("recommended_synthesis")
+            or pl.get("summary")
+            or pl.get("note")
+            or f"spin={aud.get('spin_count', 0)}, omissions={aud.get('omission_count', 0)}, delta={aud.get('security_delta', 0)}"
+        )
+        return (
+            f"[Parallax Audit {aud.get('audit_id')}] kind={aud.get('kind')} verdict={aud.get('verdict')} "
+            f"({aud.get('created_at')})\n"
+            f"- Prompt: {aud.get('prompt', '')}\n"
+            f"- Summary: {headline}"
+        )
 
     if sub == "seed":
         seeded = seed_demo_data()
@@ -162,6 +184,13 @@ def register(ctx: Any) -> None:
         handler=lambda args, **kw: tools.handle_export_dataset(ctx, args, **kw),
         description="Export rubric-filtered TRL DPO or ChatML SFT JSONL training files.",
     )
+    ctx.register_tool(
+        name="parallax_ledger_status",
+        toolset="parallax",
+        schema=schemas.PARALLAX_LEDGER_STATUS,
+        handler=lambda args, **kw: tools.handle_ledger_status(ctx, args, **kw),
+        description="Inspect Parallax audit KPIs, recent passive/active flags, or a specific audit_id.",
+    )
 
     def _on_post_llm_call(
         session_id: str = "",
@@ -188,10 +217,12 @@ def register(ctx: Any) -> None:
         name="parallax",
         handler=lambda raw_args, **kw: _handle_slash_parallax(ctx, raw_args, **kw),
         description="Run Parallax framing audits, blind code taste-tests, and DPO/SFT exports.",
-        args_hint="status | seed | frame <prompt> | code <prompt> | export [dpo|sft]",
+        args_hint="status | inspect <id> | seed | frame <prompt> | code <prompt> | export [dpo|sft]",
     )
 
     def _rpc_summary(params: Any = None, *, session_id: str = "", **kwargs: Any) -> dict[str, Any]:
+        if isinstance(params, dict) and (params.get("audit_id") or params.get("kind")):
+            return tools.run_ledger_status(ctx, params)
         limit = 25
         if isinstance(params, dict) and str(params.get("limit", "")).isdigit():
             limit = max(1, min(100, int(params["limit"])))

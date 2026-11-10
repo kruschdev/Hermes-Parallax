@@ -181,3 +181,40 @@ PARALLAX_EXPORT_DATASET = {
         "required": [],
     },
 }
+
+PARALLAX_LEDGER_STATUS = {
+    "name": "parallax_ledger_status",
+    "description": (
+        "Read-only query tool to inspect the Parallax SQLite audit and DPO ledger. Returns "
+        "aggregate KPIs (total audits, frame/code/passive turn flags, context-degraded count, "
+        "total and gold DPO pairs), compact recent audit summaries (filterable by kind: 'all', "
+        "'frame', 'code', or 'passive'), recent curated pair metadata, or the full decoded "
+        "findings for a specific audit_id so the agent can relay telemetry to the user."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "audit_id": {
+                "type": "string",
+                "description": (
+                    "Optional specific audit_id (e.g. 'aud_...') to retrieve in full detail, "
+                    "including shared facts, silent omissions, verified spin quotes, or AST findings."
+                ),
+            },
+            "kind": {
+                "type": "string",
+                "enum": ["all", "frame", "code", "passive"],
+                "description": "Filter recent_audits by audit kind (default 'all').",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of recent audits/pairs to return (1-50, default 10).",
+            },
+            "include_pairs": {
+                "type": "boolean",
+                "description": "Whether to include compact metadata for recent curated DPO pairs (default true).",
+            },
+        },
+        "required": [],
+    },
+}

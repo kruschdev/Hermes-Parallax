@@ -127,6 +127,7 @@ def test_register_wires_exact_manifest_capabilities(isolated_hermes_home: Path) 
         "parallax_code_audit",
         "parallax_curate_pair",
         "parallax_export_dataset",
+        "parallax_ledger_status",
     }
     assert set(ctx.hooks) == {"post_llm_call"}
     assert set(ctx.aux_tasks) == {"parallax_lens_a", "parallax_lens_b", "parallax_judge"}
@@ -701,5 +702,104 @@ def test_dashboard_live_llm_regenerate_and_judge_boundary_redaction(
     assert len(structured_calls) == 1
     assert structured_calls[0].get("system_prompt")
     assert "boundary=" in structured_calls[0]["input"][0]["text"]
+
+
+def test_ledger_status_tool_slash_inspect_cli_and_stdio_mcp(
+    isolated_hermes_home: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import io
+
+    pkg = _load_plugin_package()
+    ctx = _RecordingHermesContext()
+    pkg.register(ctx)
+
+    # Seed via slash command and query via native read-only agent tool
+    ctx.commands["parallax"]["handler"]("seed")
+    raw_summary = ctx.tools["parallax_ledger_status"]["handler"](
+        {"kind": "passive", "limit": 5, "include_pairs": True}
+    )
+    summary_out = json.loads(raw_summary)
+    assert summary_out["ok"] is True
+    assert summary_out["mode"] == "summary"
+    assert summary_out["kpis"]["passive_flags"] >= 1
+    assert all(row["kind"] == "passive" for row in summary_out["recent_audits"])
+    passive_id = summary_out["recent_audits"][0]["audit_id"]
+
+    # Drill down on a specific audit_id via tool and slash command
+    detail_out = json.loads(
+        ctx.tools["parallax_ledger_status"]["handler"]({"audit_id": passive_id})
+    )
+    assert detail_out["ok"] is True
+    assert detail_out["mode"] == "audit_detail"
+    assert detail_out["audit"]["audit_id"] == passive_id
+
+    slash_inspect = ctx.commands["parallax"]["handler"](f"inspect {passive_id}")
+    assert passive_id in slash_inspect
+
+    missing_out = json.loads(
+        ctx.tools["parallax_ledger_status"]["handler"]({"audit_id": "aud_nonexistent"})
+    )
+    assert missing_out["ok"] is False
+
+    # Load __main__.py and verify standalone CLI + JSON-RPC 2.0 Stdio MCP (newline & Content-Length)
+    cli_spec = importlib.util.spec_from_file_location(
+        "parallax_cli_mcp_under_test",
+        PLUGIN_ROOT / "__main__.py",
+    )
+    assert cli_spec is not None and cli_spec.loader is not None
+    cli_mod = importlib.util.module_from_spec(cli_spec)
+    cli_spec.loader.exec_module(cli_mod)
+
+    rc = cli_mod.main(["status", "--kind", "code", "--json"])
+    assert rc == 0
+    cli_json = json.loads(capsys.readouterr().out)
+    assert cli_json["ok"] is True
+    assert all(r["kind"] == "code" for r in cli_json["recent_audits"])
+
+    # Newline-delimited MCP 2024-11-05 session (initialize -> notification -> tools/list -> tools/call)
+    mcp_reqs = [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2024-11-05"}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}},
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {"name": "parallax_ledger_status", "arguments": {"limit": 3}},
+        },
+    ]
+    in_buf = io.BytesIO(
+        "".join(json.dumps(m) + "\n" for m in mcp_reqs).encode("utf-8")
+    )
+    out_buf = io.BytesIO()
+    assert cli_mod.serve_mcp_stdio(pkg, stdin_buf=in_buf, stdout_buf=out_buf) == 0
+    responses = [
+        json.loads(line)
+        for line in out_buf.getvalue().decode("utf-8").splitlines()
+        if line.strip()
+    ]
+    assert [r["id"] for r in responses] == [1, 2, 3]
+    listed_names = {t["name"] for t in responses[1]["result"]["tools"]}
+    assert listed_names == {
+        "parallax_ledger_status",
+        "parallax_frame_audit",
+        "parallax_code_audit",
+        "parallax_curate_pair",
+        "parallax_export_dataset",
+    }
+    assert responses[2]["result"]["isError"] is False
+    assert responses[2]["result"]["structuredContent"]["ok"] is True
+
+    # Content-Length framed MCP request
+    framed_msg = json.dumps({"jsonrpc": "2.0", "id": 99, "method": "ping"}).encode("utf-8")
+    framed_in = io.BytesIO(f"Content-Length: {len(framed_msg)}\r\n\r\n".encode("ascii") + framed_msg)
+    framed_out = io.BytesIO()
+    assert cli_mod.serve_mcp_stdio(pkg, stdin_buf=framed_in, stdout_buf=framed_out) == 0
+    raw_reply = framed_out.getvalue()
+    assert raw_reply.startswith(b"Content-Length: ")
+    reply_body = json.loads(raw_reply.split(b"\r\n\r\n", 1)[1].decode("utf-8"))
+    assert reply_body["id"] == 99
+    assert reply_body["result"] == {}
 
 

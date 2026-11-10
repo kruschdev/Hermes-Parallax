@@ -86,12 +86,15 @@ Exports:
   3. **DPO / SFT Dataset Forge** (Interactive `accuracy / balance / independence` threshold sliders, live qualifying count, 1-click JSONL export)
 - `dashboard/plugin_api.py`: FastAPI `router = APIRouter()` with `async def` endpoints (`GET /summary`, `GET /presets`, `POST /analyze-frame`, `POST /analyze-code`, `POST /curate`, `POST /export`, `POST /seed-demo`) offloading sync work via `asyncio.to_thread`.
 
-### 2.5 Root Manifest & Entrypoint Choke Points (Orchestrator)
+### 2.5 Root Manifest, CLI/MCP Entrypoint & Choke Points (Orchestrator)
 - `plugin.yaml`:
   - `name: parallax`, `version: "0.1.0"`, `manifest_version: 2`, `api_version: 1`, `license: MIT`, `requires_hermes: ">=0.22.3"`
-  - `provides_tools`: `[parallax_frame_audit, parallax_code_audit, parallax_curate_pair, parallax_export_dataset]`
+  - `provides_tools`: `[parallax_frame_audit, parallax_code_audit, parallax_curate_pair, parallax_export_dataset, parallax_ledger_status]`
   - `provides_hooks`: `[post_llm_call]`
   - `provides_middleware`: `[]`
   - `requires_env`: `[]`
   - `config_schema`: `passive_watch` (`bool`, default `true`), `auto_curate_degraded_code` (`bool`, default `true`), `min_export_accuracy` (`int`, default `4`), `min_export_balance` (`int`, default `4`).
-- `__init__.py`: `register(ctx)` wiring the 3 auxiliary tasks (`parallax_lens_a`, `parallax_lens_b`, `parallax_judge`), 4 tools, `post_llm_call` passive lexical/AST observer, `/parallax` slash command, `plugin.parallax.summary` & `plugin.parallax.audit` RPC methods, and bundled `skills/parallax-methodology/SKILL.md`.
+- `schemas.py` & `tools.py` (`parallax_ledger_status`):
+  - Read-only agent tool (`PARALLAX_LEDGER_STATUS`, `run_ledger_status`, `handle_ledger_status`) enabling the Hermes LLM (and external MCP agents) to query ledger KPIs (`total_audits`, `frame_audits`, `code_audits`, `passive_flags`, `context_degraded_count`, `total_dpo_pairs`, `gold_dpo_pairs`), filter recent compact audit summaries by `kind` (`"all" | "frame" | "code" | "passive"`), optionally include compact curated pair summaries (`include_pairs`), or retrieve the full decoded record for a specific `audit_id`.
+- `__init__.py`: `register(ctx)` wiring the 3 auxiliary tasks (`parallax_lens_a`, `parallax_lens_b`, `parallax_judge`), 5 tools (`parallax_frame_audit`, `parallax_code_audit`, `parallax_curate_pair`, `parallax_export_dataset`, `parallax_ledger_status`), `post_llm_call` passive lexical/AST observer, `/parallax` slash command (`status | inspect <audit_id> | seed | frame | code | export`), `plugin.parallax.summary` & `plugin.parallax.audit` RPC methods, and bundled `skills/parallax-methodology/SKILL.md`.
+- `__main__.py`: Zero-dependency Python stdlib CLI (`status`, `inspect`, `seed`, `frame`, `code`, `curate`, `export`) and JSON-RPC 2.0 Stdio MCP server (`mcp`, `protocolVersion: "2024-11-05"`, supporting newline-delimited and `Content-Length` framed stdio with 4-boolean MCP tool annotations) runnable directly from the installed plugin directory (`python3 ~/.hermes/plugins/hermes-parallax ...`) with zero external PyPI packages or network calls.

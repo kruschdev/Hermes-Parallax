@@ -33,3 +33,10 @@ Raw preference datasets degrade quickly if low-accuracy or one-sided pairs are m
 
 1. Call `parallax_curate_pair` to record a clean synthesis or hardened implementation as `chosen` and the refusal, spin-heavy reply, or degraded code as `rejected`, scoring `accuracy` (`1-5`), `balance` (`1-5`), and `independence` (`1-5`).
 2. Call `parallax_export_dataset` with `min_accuracy: 5, min_balance: 4, min_independence: 4` to export filtered TRL `dpo` or ChatML `sft` JSONL files into `<HERMES_HOME>/plugin-data/parallax/exports/`.
+
+## 4. Telemetry Read-Back & Audit Inspection (`parallax_ledger_status`)
+
+Whenever the user asks what Parallax caught in recent turns, how many gold DPO pairs are in the ledger, or wants details on a prior audit:
+
+1. Call `parallax_ledger_status` (optionally setting `kind: "passive"` for turn-hook warnings, `kind: "code"` / `"frame"`, or `audit_id: "aud_..."` for full drill-down).
+2. Relay the concrete KPIs, passive warnings, and verified findings concisely without re-running unnecessary LLM completions.

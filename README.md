@@ -68,6 +68,7 @@ auxiliary:
 
 ```text
 /parallax status
+/parallax inspect aud_demo_code_defense_portal
 /parallax frame Compare semiconductor export control impacts on domestic foundry R&D
 /parallax code Build a FastAPI audit log query endpoint for a Pentagon logistics portal
 /parallax export dpo 5 4 4
@@ -77,10 +78,25 @@ auxiliary:
 
 | Tool | Purpose |
 |------|---------|
+| `parallax_ledger_status` | Read-only query returning ledger KPIs, recent passive/active audit summaries (filterable by `kind`), or full findings for a specific `audit_id`. |
 | `parallax_frame_audit` | Decompose contrasting responses into shared facts, silent omissions, verbatim spin quotes, and `1–5` rubric scores. |
 | `parallax_code_audit` | Scrub institutional/geopolitical context to `NeutralOrg_1` and run AST + sink security scoring (`0–100`) to catch `CONTEXT_DEGRADED` code. |
 | `parallax_curate_pair` | Persist a `(prompt, chosen, rejected)` pair with `accuracy`, `balance`, and `independence` scores. |
 | `parallax_export_dataset` | Export rubric-filtered TRL `dpo` or ChatML `sft` JSONL files to `<HERMES_HOME>/plugin-data/parallax/exports/`. |
+
+### Standalone CLI & Stdio MCP Bridge (External Agents & Shell Scripts)
+
+Inside Hermes Agent, Parallax runs natively via `ctx.register_tool` so it can access `ctx.llm` and your configured multi-model auxiliary slots directly. For shell pipelines or external MCP hosts (Claude Code, Cursor, Antigravity), the plugin directory also executes directly as a zero-dependency Python CLI and JSON-RPC 2.0 Stdio MCP server:
+
+```bash
+# Terminal CLI (human-readable or --json)
+python3 ~/.hermes/plugins/hermes-parallax status --kind passive
+python3 ~/.hermes/plugins/hermes-parallax inspect <audit_id> --json
+python3 ~/.hermes/plugins/hermes-parallax export --format dpo --min-accuracy 5 --json
+
+# Zero-dependency Stdio MCP server (exposes all 5 tools over JSON-RPC 2.0 stdio)
+python3 ~/.hermes/plugins/hermes-parallax mcp
+```
 
 ### Hermes Web Dashboard
 
@@ -93,7 +109,7 @@ Start `hermes dashboard` and open the **Parallax** tab (`/parallax`):
 
 ## Hermes Surfaces Used
 
-- **Tools**: `ctx.register_tool` (`parallax_frame_audit`, `parallax_code_audit`, `parallax_curate_pair`, `parallax_export_dataset`)
+- **Tools**: `ctx.register_tool` (`parallax_frame_audit`, `parallax_code_audit`, `parallax_curate_pair`, `parallax_export_dataset`, `parallax_ledger_status`)
 - **Auxiliary Model Tasks**: `ctx.register_auxiliary_task` (`parallax_lens_a`, `parallax_lens_b`, `parallax_judge`)
 - **Host-Owned LLM Calls**: `ctx.llm.complete` & `ctx.llm.complete_structured`
 - **Lifecycle Hook**: `ctx.register_hook("post_llm_call", ...)` — lightweight `<1ms` local lexical/AST telemetry observer (makes **zero** background LLM or network calls)
