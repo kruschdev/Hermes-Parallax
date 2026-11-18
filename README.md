@@ -30,6 +30,16 @@ Inspired by the empirical findings around post-training value shifts and context
 
 ## Installation
 
+### Agent-Assisted Setup
+
+Ask your coding agent (Claude Code, Codex, Cursor, Windsurf, or Antigravity):
+
+```text
+Read https://raw.githubusercontent.com/kruschdev/Hermes-Parallax/main/INSTALL.md and set up Hermes-Parallax on this machine.
+```
+
+### Hermes Plugin CLI
+
 ```bash
 # Install from GitHub (or via catalog once listed)
 hermes plugins install https://github.com/kruschdev/hermes-parallax
